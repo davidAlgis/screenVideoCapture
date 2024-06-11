@@ -99,7 +99,6 @@ print("Releasing resources...")
 video_writer.release()
 cv2.destroyAllWindows()
 
-
 video = VideoFileClip(video_output)
 audio = AudioFileClip(audio_output)
 
@@ -108,3 +107,5 @@ video = video.set_audio(audio)
 
 # Write the final output to a file
 video.write_videofile("output.mp4", codec="libx264", audio_codec="aac")
+os.remove(video_output)
+os.remove(audio_output)
