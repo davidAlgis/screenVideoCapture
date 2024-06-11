@@ -1,5 +1,8 @@
-cv2
+opencv-python
 mss
 numpy
 argparse
 tqdm
+pynput
+pyaudio
+moviepy
