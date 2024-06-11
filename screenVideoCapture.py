@@ -7,21 +7,22 @@ import pyaudio
 import threading
 import subprocess
 from moviepy.editor import VideoFileClip, AudioFileClip
+import os
 
 # Set up the screen capture.
 # Adjust this to your screen resolution.
 monitor = {"top": 0, "left": 0, "width": 1920, "height": 1080}
 sct = mss.mss()
 keep_listening = True
-
+video_output = "tempVideo.mp4"  # The output file.
 
 # Audio capture settings
 audio_format = pyaudio.paInt16
 channels = 2
 rate = 44100
 chunk = 1024
-audio_output = "outputAudio.wav"
-video_output = "outputVideo.mp4"  # The output file.
+audio_output = "tempAudio.wav"
+gain = 2.0  # Adjust this gain factor to increase the audio volume
 
 
 def on_key_press(key):
@@ -48,6 +49,14 @@ def capture_audio():
 
     while keep_listening:
         data = stream.read(chunk)
+        # Convert byte data to numpy array
+        numpy_data = numpy.frombuffer(data, dtype=numpy.int16)
+        # Apply gain
+        numpy_data = numpy_data * gain
+        # Clip the values to avoid overflow
+        numpy_data = numpy.clip(numpy_data, -32768, 32767)
+        # Convert back to bytes
+        data = numpy_data.astype(numpy.int16).tobytes()
         frames.append(data)
 
     stream.stop_stream()
@@ -73,7 +82,7 @@ video_writer = cv2.VideoWriter(
 listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
 listener.start()
 
-# Start audio capture in a separate threadq
+# Start audio capture in a separate thread
 audio_thread = threading.Thread(target=capture_audio)
 audio_thread.start()
 
