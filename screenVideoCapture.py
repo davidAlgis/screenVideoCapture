@@ -1,3 +1,4 @@
+import argparse
 import cv2
 import mss
 import numpy
@@ -70,6 +71,12 @@ def capture_audio():
     wf.writeframes(b''.join(frames))
     wf.close()
 
+# Set up the argument parser
+parser = argparse.ArgumentParser(description='Process some integers.')
+parser.add_argument('-o', '--output', type=str, default='output.mp4',
+                    help='The path and name of the output video file.')
+
+args = parser.parse_args()
 
 # Set up the video writer.
 # You can experiment with different codecs.
@@ -115,6 +122,6 @@ audio = AudioFileClip(audio_output)
 video = video.set_audio(audio)
 
 # Write the final output to a file
-video.write_videofile("output.mp4", codec="libx264", audio_codec="aac")
+video.write_videofile(args.output, codec="libx264", audio_codec="aac")
 os.remove(video_output)
-os.remove(audio_output)
+# os.remove(audio_output)
