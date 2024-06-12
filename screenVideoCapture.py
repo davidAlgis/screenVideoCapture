@@ -119,7 +119,7 @@ def ensure_directory_exists(file_path):
     Ensures the directory for the given file path exists, creates it if it does not.
     """
     directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
+    if directory and not os.path.exists(directory):
         os.makedirs(directory)
 
 
