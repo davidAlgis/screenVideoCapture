@@ -1,107 +1,168 @@
 import argparse
 import cv2
 import mss
-import numpy
+import numpy as np
 from pynput import keyboard
 import threading
-import subprocess
 from moviepy.editor import VideoFileClip, AudioFileClip
 import os
 import soundcard as sc
 import soundfile as sf
 
-# Set up the screen capture.
-# Adjust this to your screen resolution.
-monitor = {"top": 0, "left": 0, "width": 1920, "height": 1080}
-sct = mss.mss()
-keep_listening = True
-video_output = "tempVideo.mp4"  # The output file.
 
-# Audio capture settings
-audio_output = "tempAudio.wav"
-SAMPLE_RATE = 48000  # [Hz]. sampling rate.
-gain = 2.0  # Adjust this gain factor to increase the audio volume
+class ScreenRecorder:
+    def __init__(self, monitor, video_output, audio_output, sample_rate, gain, record_audio):
+        """
+        Initializes the ScreenRecorder with monitor settings, output file paths, sample rate, gain, and audio recording flag.
+        """
+        self.monitor = monitor
+        self.video_output = video_output
+        self.audio_output = audio_output
+        self.sample_rate = sample_rate
+        self.gain = gain
+        self.keep_listening = True
+        self.sct = mss.mss()
+        self.video_writer = self._setup_video_writer()
+        self.record_audio = record_audio
+
+    def _setup_video_writer(self):
+        """
+        Sets up the video writer with specified codec and frame rate.
+        """
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fps = 30.0  # Adjust this to your desired frames per second.
+        return cv2.VideoWriter(
+            self.video_output, fourcc, fps,
+            (self.monitor["width"], self.monitor["height"])
+        )
+
+    def on_key_press(self, key):
+        """
+        Handles key press events to stop the program when 'q' is pressed.
+        """
+        try:
+            if key.char == 'q':
+                print('The key "q" is pressed. Stopping the program...')
+                self.keep_listening = False
+        except AttributeError:
+            pass
+
+    def on_key_release(self, key):
+        """
+        Handles key release events to stop the listener when 'esc' is released.
+        """
+        if key == keyboard.Key.esc:
+            return False
+
+    def capture_audio(self):
+        """
+        Captures audio using the soundcard library with loopback from the default speaker.
+        """
+        with sc.get_microphone(id=str(sc.default_speaker().name), include_loopback=True).recorder(samplerate=self.sample_rate) as mic:
+            frames = []
+            while self.keep_listening:
+                data = mic.record(numframes=self.sample_rate // 10)
+                data = data * self.gain
+                frames.append(data)
+
+            frames = np.concatenate(frames)
+            sf.write(file=self.audio_output, data=frames,
+                     samplerate=self.sample_rate)
+
+    def capture_screen(self):
+        """
+        Captures the screen and writes the frames to the video file.
+        """
+        while self.keep_listening:
+            img = self.sct.grab(self.monitor)
+            img_bgra = np.array(img)
+            img_bgr = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
+            self.video_writer.write(img_bgr)
+
+    def release_resources(self):
+        """
+        Releases the resources used by the video writer and closes all OpenCV windows.
+        """
+        self.video_writer.release()
+        cv2.destroyAllWindows()
+
+    def combine_audio_video(self, output_file):
+        """
+        Combines the captured audio and video into a single file.
+        """
+        video = VideoFileClip(self.video_output)
+        if self.record_audio:
+            audio = AudioFileClip(self.audio_output)
+            video = video.set_audio(audio)
+        video.write_videofile(output_file, codec="libx264", audio_codec="aac")
+        os.remove(self.video_output)
+        if self.record_audio:
+            os.remove(self.audio_output)
 
 
-def on_key_press(key):
-    global keep_listening
-    try:
-        if key.char == 'q':
-            print('The key "q" is pressed. Stopping the program...')
-            keep_listening = False
-    except AttributeError:
-        pass
-
-
-def on_key_release(key):
-    if key == keyboard.Key.esc:
-        # Stop listener
+def str2bool(v):
+    """
+    Converts a string argument to a boolean value.
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def capture_audio():
-    with sc.get_microphone(id=str(sc.default_speaker().name), include_loopback=True).recorder(samplerate=SAMPLE_RATE) as mic:
-        frames = []
-        while keep_listening:
-            data = mic.record(numframes=SAMPLE_RATE // 10)
-            data = data * gain
-            frames.append(data)
-
-        frames = numpy.concatenate(frames)
-        sf.write(file=audio_output, data=frames, samplerate=SAMPLE_RATE)
+def ensure_directory_exists(file_path):
+    """
+    Ensures the directory for the given file path exists, creates it if it does not.
+    """
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
-# Set up the argument parser
-parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-o', '--output', type=str, default='output.mp4',
-                    help='The path and name of the output video file.')
+def main(args):
+    """
+    Main function to set up the ScreenRecorder and start the capturing process.
+    """
+    monitor = {"top": 0, "left": 0, "width": 1920, "height": 1080}
+    video_output = "tempVideo.mp4"
+    audio_output = "tempAudio.wav"
+    sample_rate = 48000
+    gain = 2.0
 
-args = parser.parse_args()
+    recorder = ScreenRecorder(monitor, video_output,
+                              audio_output, sample_rate, gain, args.audio)
 
-# Set up the video writer.
-# You can experiment with different codecs.
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-fps = 30.0  # Adjust this to your desired frames per second.
-video_writer = cv2.VideoWriter(
-    video_output, fourcc, fps, (monitor["width"], monitor["height"]))
+    listener = keyboard.Listener(
+        on_press=recorder.on_key_press, on_release=recorder.on_key_release)
+    listener.start()
 
-# Set up the keyboard listener.
-listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
-listener.start()
+    if args.audio:
+        audio_thread = threading.Thread(target=recorder.capture_audio)
+        audio_thread.start()
 
-# Start audio capture in a separate thread
-audio_thread = threading.Thread(target=capture_audio)
-audio_thread.start()
+    print("Capturing screen...")
+    recorder.capture_screen()
 
-print("Capturing screen...")
+    if args.audio:
+        audio_thread.join()
 
-# Capture the screen and encode the frames to video.
-while keep_listening:
-    # Get the screen image.
-    img = sct.grab(monitor)
-    # MSS returns images in BGRA format, so we'll convert it to BGR.
-    img_bgra = numpy.array(img)
-    img_bgr = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
+    print("Releasing resources...")
+    recorder.release_resources()
 
-    # Write the frame to the video file.
-    video_writer.write(img_bgr)
+    ensure_directory_exists(args.output)
+    recorder.combine_audio_video(args.output)
 
-# Wait for audio capture to finish
-audio_thread.join()
 
-print("Releasing resources...")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Screen and audio recorder.')
+    parser.add_argument('-o', '--output', type=str, default='output.mp4',
+                        help='The path and name of the output video file.')
+    parser.add_argument('-a', '--audio', type=str2bool, nargs='?', const=True, default=True,
+                        help='Indicate if audio should be recorded. (default is true)')
 
-# Release the resources.
-video_writer.release()
-cv2.destroyAllWindows()
-
-video = VideoFileClip(video_output)
-audio = AudioFileClip(audio_output)
-
-# Set the audio of the video clip
-video = video.set_audio(audio)
-
-# Write the final output to a file
-video.write_videofile(args.output, codec="libx264", audio_codec="aac")
-os.remove(video_output)
-os.remove(audio_output)
+    args = parser.parse_args()
+    main(args)
