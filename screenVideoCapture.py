@@ -11,7 +11,7 @@ import soundfile as sf
 
 
 class ScreenRecorder:
-    def __init__(self, monitor, video_output, audio_output, sample_rate, gain, record_audio):
+    def __init__(self, monitor, video_output, audio_output, sample_rate, gain, record_audio, codec, bitrate, fps):
         """
         Initializes the ScreenRecorder with monitor settings, output file paths, sample rate, gain, and audio recording flag.
         """
@@ -22,17 +22,19 @@ class ScreenRecorder:
         self.gain = gain
         self.keep_listening = True
         self.sct = mss.mss()
-        self.video_writer = self._setup_video_writer()
+        self.codec = codec
+        self.bitrate = bitrate
+        self.fps = fps
         self.record_audio = record_audio
+        self.video_writer = self._setup_video_writer()
 
     def _setup_video_writer(self):
         """
         Sets up the video writer with specified codec and frame rate.
         """
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        fps = 30.0  # Adjust this to your desired frames per second.
         return cv2.VideoWriter(
-            self.video_output, fourcc, fps,
+            self.video_output, fourcc, self.fps,
             (self.monitor["width"], self.monitor["height"])
         )
 
@@ -88,16 +90,19 @@ class ScreenRecorder:
 
     def combine_audio_video(self, output_file):
         """
-        Combines the captured audio and video into a single file.
+        Combines the captured audio and video into a single file using ffmpeg for better control over compression settings.
         """
         video = VideoFileClip(self.video_output)
         if self.record_audio:
             audio = AudioFileClip(self.audio_output)
             video = video.set_audio(audio)
-        video.write_videofile(output_file, codec="libx264", audio_codec="aac")
-        os.remove(self.video_output)
-        if self.record_audio:
-            os.remove(self.audio_output)
+
+        ffmpeg_params = ['-b:v', str(self.bitrate)]
+        video.write_videofile(output_file, codec=self.codec,
+                              audio_codec="aac", ffmpeg_params=ffmpeg_params)
+        # os.remove(self.video_output)
+        # if self.record_audio:
+        # os.remove(self.audio_output)
 
 
 def str2bool(v):
@@ -132,9 +137,10 @@ def main(args):
     audio_output = "tempAudio.wav"
     sample_rate = 48000
     gain = 2.0
+    codec = "libx265" if args.codec.lower() == 'h265' else "libx264"
 
     recorder = ScreenRecorder(monitor, video_output,
-                              audio_output, sample_rate, gain, args.audio)
+                              audio_output, sample_rate, gain, args.audio, codec, args.bitrate, args.fps)
 
     listener = keyboard.Listener(
         on_press=recorder.on_key_press, on_release=recorder.on_key_release)
@@ -164,6 +170,12 @@ if __name__ == "__main__":
                         help='The path and name of the output video file.')
     parser.add_argument('-a', '--audio', type=str2bool, nargs='?', const=True, default=True,
                         help='Indicate if audio should be recorded. (default is true)')
+    parser.add_argument('-c', '--codec', type=str, default='h264', choices=['h264', 'h265'],
+                        help='The codec to use for video compression (default is h264).')
+    parser.add_argument('-b', '--bitrate', type=int, default=1000000,
+                        help='The bitrate for video compression in bits per second (default is 1000000).')
+    parser.add_argument('-f', '--fps', type=int, default=30,
+                        help='The frames per second of the video (default is 30).')
 
     args = parser.parse_args()
     main(args)
