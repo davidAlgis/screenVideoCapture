@@ -3,12 +3,12 @@ import cv2
 import mss
 import numpy
 from pynput import keyboard
-import wave
-import pyaudio
 import threading
 import subprocess
 from moviepy.editor import VideoFileClip, AudioFileClip
 import os
+import soundcard as sc
+import soundfile as sf
 
 # Set up the screen capture.
 # Adjust this to your screen resolution.
@@ -18,11 +18,8 @@ keep_listening = True
 video_output = "tempVideo.mp4"  # The output file.
 
 # Audio capture settings
-audio_format = pyaudio.paInt16
-channels = 2
-rate = 44100
-chunk = 1024
 audio_output = "tempAudio.wav"
+SAMPLE_RATE = 48000  # [Hz]. sampling rate.
 gain = 2.0  # Adjust this gain factor to increase the audio volume
 
 
@@ -43,33 +40,16 @@ def on_key_release(key):
 
 
 def capture_audio():
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=audio_format, channels=channels,
-                        rate=rate, input=True, frames_per_buffer=chunk)
-    frames = []
+    with sc.get_microphone(id=str(sc.default_speaker().name), include_loopback=True).recorder(samplerate=SAMPLE_RATE) as mic:
+        frames = []
+        while keep_listening:
+            data = mic.record(numframes=SAMPLE_RATE // 10)
+            data = data * gain
+            frames.append(data)
 
-    while keep_listening:
-        data = stream.read(chunk)
-        # Convert byte data to numpy array
-        numpy_data = numpy.frombuffer(data, dtype=numpy.int16)
-        # Apply gain
-        numpy_data = numpy_data * gain
-        # Clip the values to avoid overflow
-        numpy_data = numpy.clip(numpy_data, -32768, 32767)
-        # Convert back to bytes
-        data = numpy_data.astype(numpy.int16).tobytes()
-        frames.append(data)
+        frames = numpy.concatenate(frames)
+        sf.write(file=audio_output, data=frames, samplerate=SAMPLE_RATE)
 
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-
-    wf = wave.open(audio_output, 'wb')
-    wf.setnchannels(channels)
-    wf.setsampwidth(audio.get_sample_size(audio_format))
-    wf.setframerate(rate)
-    wf.writeframes(b''.join(frames))
-    wf.close()
 
 # Set up the argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
@@ -124,4 +104,4 @@ video = video.set_audio(audio)
 # Write the final output to a file
 video.write_videofile(args.output, codec="libx264", audio_codec="aac")
 os.remove(video_output)
-# os.remove(audio_output)
+os.remove(audio_output)
