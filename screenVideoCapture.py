@@ -42,7 +42,7 @@ class ScreenRecorder:
         """
         try:
             if key.char == 'q':
-                print('The key "q" is pressed. Stopping the program...')
+                print('Stopping recording...')
                 self.keep_listening = False
         except AttributeError:
             pass
@@ -144,6 +144,7 @@ def main(args):
         audio_thread = threading.Thread(target=recorder.capture_audio)
         audio_thread.start()
 
+    print("Press 'q' to stop capture.")
     print("Capturing screen...")
     recorder.capture_screen()
 
