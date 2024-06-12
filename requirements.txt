@@ -4,5 +4,6 @@ numpy
 argparse
 tqdm
 pynput
-pyaudio
 moviepy
+soundcard
+soundfile
