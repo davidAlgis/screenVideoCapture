@@ -28,6 +28,7 @@ python screenVideoCapture.py [options]
 - `-c`, `--codec` <codec>: The codec to use for video compression. Options are `h264` and `h265`. Default is `h264`.
 - `-b`, `--bitrate` <bitrate>: The bitrate for video compression in bits per second. Default is `1000000`.
 - `-f`, `--fps` <frames_per_second>: The frames per second of the video. Default is `30`.
+- `-d`, `--duration` <seconds>: The duration for which the recording should run in seconds. Default is None, it will only stop after user has press `q` key.
 - `-h`, `--help`: Display help information showing all command-line options.
 
 ## Example
