@@ -32,7 +32,10 @@ class ScreenRecorder:
         """
         Sets up the video writer with specified codec and frame rate.
         """
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        if self.codec == "h265":
+            fourcc = cv2.VideoWriter_fourcc(*"HEVC")
+        else:
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         return cv2.VideoWriter(
             self.video_output, fourcc, self.fps,
             (self.monitor["width"], self.monitor["height"])
@@ -100,9 +103,9 @@ class ScreenRecorder:
         ffmpeg_params = ['-b:v', str(self.bitrate)]
         video.write_videofile(output_file, codec=self.codec,
                               audio_codec="aac", ffmpeg_params=ffmpeg_params)
-        # os.remove(self.video_output)
-        # if self.record_audio:
-        # os.remove(self.audio_output)
+        os.remove(self.video_output)
+        if self.record_audio:
+            os.remove(self.audio_output)
 
 
 def str2bool(v):
