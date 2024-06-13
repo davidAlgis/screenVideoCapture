@@ -4,6 +4,7 @@ import mss
 import numpy as np
 from pynput import keyboard
 import threading
+import time
 from moviepy.editor import VideoFileClip, AudioFileClip
 import os
 import soundcard as sc
@@ -11,7 +12,7 @@ import soundfile as sf
 
 
 class ScreenRecorder:
-    def __init__(self, monitor, video_output, audio_output, sample_rate, gain, record_audio, codec, bitrate, fps):
+    def __init__(self, monitor, video_output, audio_output, sample_rate, gain, record_audio, codec, bitrate, fps, duration):
         """
         Initializes the ScreenRecorder with monitor settings, output file paths, sample rate, gain, and audio recording flag.
         """
@@ -26,6 +27,8 @@ class ScreenRecorder:
         self.bitrate = bitrate
         self.fps = fps
         self.record_audio = record_audio
+        self.duration = duration
+        self.start_time = None
         self.video_writer = self._setup_video_writer()
 
     def _setup_video_writer(self):
@@ -78,11 +81,15 @@ class ScreenRecorder:
         """
         Captures the screen and writes the frames to the video file.
         """
+        self.start_time = time.time()
         while self.keep_listening:
             img = self.sct.grab(self.monitor)
             img_bgra = np.array(img)
             img_bgr = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
             self.video_writer.write(img_bgr)
+            if self.duration and (time.time() - self.start_time) > self.duration:
+                print('Stopping recording due to duration limit...')
+                self.keep_listening = False
 
     def release_resources(self):
         """
@@ -143,7 +150,7 @@ def main(args):
     codec = "libx265" if args.codec.lower() == 'h265' else "libx264"
 
     recorder = ScreenRecorder(monitor, video_output,
-                              audio_output, sample_rate, gain, args.audio, codec, args.bitrate, args.fps)
+                              audio_output, sample_rate, gain, args.audio, codec, args.bitrate, args.fps, args.duration)
 
     listener = keyboard.Listener(
         on_press=recorder.on_key_press, on_release=recorder.on_key_release)
@@ -179,6 +186,8 @@ if __name__ == "__main__":
                         help='The bitrate for video compression in bits per second (default is 1000000).')
     parser.add_argument('-f', '--fps', type=int, default=30,
                         help='The frames per second of the video (default is 30).')
+    parser.add_argument('-d', '--duration', type=int, default=None,
+                        help='The duration for which the recording should run in seconds. Default is None.')
 
     args = parser.parse_args()
     main(args)
