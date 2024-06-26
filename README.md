@@ -1,6 +1,8 @@
 # Screen and Audio Recorder
 
 This Python script captures the screen and audio, allowing users to specify various options such as output file path, video codec, bitrate, and frame rate. It also offers an option to enable or disable audio recording.
+ 
+__The project is still under development there is a problem of synchronization of audio and video. However, it should works normally if you only capturing video.__
 
 ## Installation
 
